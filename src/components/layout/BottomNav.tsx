@@ -2,12 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Trophy, HelpCircle, Wallet, User } from 'lucide-react';
+import { Home, Trophy, Tv, Wallet, User } from 'lucide-react';
 
 const tabs = [
   { key: 'home', label: 'Home', href: '/', icon: Home },
   { key: 'betting', label: 'Bet', href: '/betting', icon: Trophy },
-  { key: 'quiz', label: 'Quiz', href: '/quiz', icon: HelpCircle },
+  { key: 'quiz', label: 'TV Prize', href: '/quiz', icon: Tv },
   { key: 'wallet', label: 'Wallet', href: '/wallet', icon: Wallet },
   { key: 'profile', label: 'Me', href: '/profile', icon: User },
 ];

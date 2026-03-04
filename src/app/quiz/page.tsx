@@ -1,9 +1,30 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { HelpCircle, Clock, Trophy, Users, Ticket } from 'lucide-react';
+import { Tv, Clock, Trophy } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { formatMoneyShort } from '@/lib/constants';
+
+function Countdown({ expiresAt }: { expiresAt: string }) {
+  const [timeLeft, setTimeLeft] = useState('');
+
+  useEffect(() => {
+    function update() {
+      const diff = new Date(expiresAt).getTime() - Date.now();
+      if (diff <= 0) { setTimeLeft('Ended'); return; }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setTimeLeft(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+    }
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [expiresAt]);
+
+  return <span className="font-mono font-bold text-white">{timeLeft}</span>;
+}
 
 export default function QuizPage() {
   const { quizzes } = useStore();
@@ -12,94 +33,54 @@ export default function QuizPage() {
 
   return (
     <div className="px-4 py-4">
-      {/* Active Quizzes */}
       <div className="space-y-3">
-        {activeQuizzes.map((quiz) => {
-          const prizePerWinner = quiz.winner_count > 0
-            ? Math.floor(quiz.prize_pool / quiz.winner_count)
-            : 0;
-
-          return (
-            <Link key={quiz.id} href={`/quiz/${quiz.id}`} className="block">
-              <div className="bg-[#1a1a2e] rounded-xl p-4 card-press">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-purple-400 bg-purple-400/10 px-2 py-0.5 rounded-full">
-                    {quiz.category}
-                  </span>
-                  <span className="text-xs text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">
-                    Open
+        {activeQuizzes.map((quiz) => (
+          <Link key={quiz.id} href={`/quiz/${quiz.id}`} className="block">
+            <div className="bg-gradient-to-br from-[#1a1a2e] to-[#1e1035] rounded-xl overflow-hidden card-press">
+              {/* Top: Prize banner */}
+              <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 px-4 py-3 text-center">
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <Trophy size={18} className="text-yellow-400" />
+                  <span className="text-yellow-400 font-bold text-2xl">
+                    {formatMoneyShort(quiz.prize_pool)}
                   </span>
                 </div>
+                <p className="text-[11px] text-yellow-400/70">Grand Prize</p>
+              </div>
 
-                <div className="flex items-start gap-3 mb-3">
-                  <div className="bg-purple-500/20 rounded-full p-2 shrink-0 mt-0.5">
-                    <HelpCircle size={18} className="text-purple-400" />
+              <div className="px-4 py-3">
+                <p className="font-semibold text-sm leading-snug mb-3">{quiz.question}</p>
+
+                {/* Entry fee + Countdown */}
+                <div className="flex items-center justify-between">
+                  <div className="bg-green-500/10 rounded-lg px-3 py-1.5">
+                    <span className="text-green-400 font-bold text-sm">
+                      Only {formatMoneyShort(quiz.entry_fee)}
+                    </span>
                   </div>
-                  <p className="font-semibold text-sm leading-snug">{quiz.question}</p>
-                </div>
-
-                {/* Prize highlight */}
-                <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 rounded-lg p-3 mb-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Trophy size={16} className="text-yellow-400" />
-                      <span className="text-yellow-400 font-bold text-lg">
-                        {formatMoneyShort(quiz.prize_pool)}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-400">Per winner</p>
-                      <p className="text-yellow-400 font-semibold text-sm">
-                        {formatMoneyShort(prizePerWinner)}
-                      </p>
-                    </div>
+                  <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                    <Clock size={12} className="text-red-400" />
+                    <Countdown expiresAt={quiz.expires_at} />
                   </div>
-                </div>
-
-                {/* Stats */}
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span className="flex items-center gap-1">
-                    <Ticket size={12} />
-                    Entry: {formatMoneyShort(quiz.entry_fee)}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Users size={12} />
-                    {quiz.participants.toLocaleString()} joined
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Clock size={12} />
-                    {new Date(quiz.expires_at).toLocaleDateString('en-ZA', {
-                      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                    })}
-                  </span>
                 </div>
               </div>
-            </Link>
-          );
-        })}
+            </div>
+          </Link>
+        ))}
       </div>
 
-      {/* Past Quizzes */}
+      {/* Past draws - minimal */}
       {pastQuizzes.length > 0 && (
         <div className="mt-6">
           <h3 className="text-sm font-semibold text-gray-400 mb-3">Past Draws</h3>
           <div className="space-y-3">
             {pastQuizzes.map((quiz) => (
               <Link key={quiz.id} href={`/quiz/${quiz.id}`} className="block">
-                <div className="bg-[#1a1a2e] rounded-xl p-4 opacity-80">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-purple-400">{quiz.category}</span>
-                    <span className="text-xs text-gray-400 bg-gray-400/10 px-2 py-0.5 rounded-full">
-                      {quiz.status === 'settled' ? 'Drawn' : 'Cancelled'}
-                    </span>
-                  </div>
+                <div className="bg-[#1a1a2e] rounded-xl p-4 opacity-70">
                   <p className="font-semibold text-sm mb-2">{quiz.question}</p>
                   <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>Prize: {formatMoneyShort(quiz.prize_pool)}</span>
-                    <span>{quiz.participants.toLocaleString()} players</span>
-                    {quiz.correct_count > 0 && (
-                      <span>{quiz.correct_count.toLocaleString()} correct</span>
-                    )}
+                    <span className="text-yellow-400/70">Prize: {formatMoneyShort(quiz.prize_pool)}</span>
+                    <span>{quiz.status === 'settled' ? 'Drawn' : 'Cancelled'}</span>
                   </div>
                 </div>
               </Link>
@@ -110,8 +91,8 @@ export default function QuizPage() {
 
       {quizzes.length === 0 && (
         <div className="text-center py-12">
-          <HelpCircle size={40} className="mx-auto text-gray-600 mb-3" />
-          <p className="text-gray-500">No quizzes yet</p>
+          <Tv size={40} className="mx-auto text-gray-600 mb-3" />
+          <p className="text-gray-500">No prizes yet</p>
           <p className="text-gray-600 text-sm">Check back soon!</p>
         </div>
       )}

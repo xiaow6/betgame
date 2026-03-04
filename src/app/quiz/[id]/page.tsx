@@ -1,12 +1,32 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, HelpCircle, Check, Clock, Trophy, Users, Ticket, Star, Gift } from 'lucide-react';
+import { ArrowLeft, Check, Clock, Trophy, Tv } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { formatMoneyShort, formatMoney } from '@/lib/constants';
 import { v4 as uuidv4 } from 'uuid';
 import type { Bet, Transaction } from '@/types';
+
+function Countdown({ expiresAt }: { expiresAt: string }) {
+  const [timeLeft, setTimeLeft] = useState('');
+
+  useEffect(() => {
+    function update() {
+      const diff = new Date(expiresAt).getTime() - Date.now();
+      if (diff <= 0) { setTimeLeft('Ended'); return; }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setTimeLeft(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+    }
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [expiresAt]);
+
+  return <span className="font-mono font-bold text-2xl text-white">{timeLeft}</span>;
+}
 
 export default function QuizDetailPage() {
   const { id } = useParams();
@@ -21,12 +41,11 @@ export default function QuizDetailPage() {
   if (!quiz) {
     return (
       <div className="px-4 py-12 text-center">
-        <p className="text-gray-500">Quiz not found</p>
+        <p className="text-gray-500">Not found</p>
       </div>
     );
   }
 
-  const totalPicks = quiz.options.reduce((sum, o) => sum + o.pick_count, 0);
   const prizePerWinner = quiz.winner_count > 0
     ? Math.floor(quiz.prize_pool / quiz.winner_count)
     : 0;
@@ -34,10 +53,6 @@ export default function QuizDetailPage() {
   const isActive = quiz.status === 'active';
   const canJoin = isActive && selectedOption && !placing && !alreadyJoined
     && (user?.balance ?? 0) >= quiz.entry_fee;
-
-  // Platform revenue calculation (for info)
-  const totalRevenue = quiz.entry_fee * quiz.participants;
-  const platformProfit = totalRevenue - quiz.prize_pool;
 
   function handleJoinQuiz() {
     if (!canJoin || !user || !quiz) return;
@@ -64,7 +79,7 @@ export default function QuizDetailPage() {
       balance_after: user.balance - quiz.entry_fee,
       fund_type: 'balance',
       reference_id: bet.id,
-      description: `Quiz entry: ${quiz.question.slice(0, 40)}...`,
+      description: `TV Grand Prize: ${quiz.question.slice(0, 30)}...`,
       created_at: new Date().toISOString(),
     };
 
@@ -78,33 +93,30 @@ export default function QuizDetailPage() {
     }, 500);
   }
 
-  // Success screen after joining
+  // Success screen
   if (success) {
     const selectedOpt = quiz.options.find(o => o.id === selectedOption);
     return (
       <div className="px-4 py-12 text-center">
-        <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Check size={32} className="text-purple-400" />
+        <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Check size={32} className="text-yellow-400" />
         </div>
         <h2 className="text-xl font-bold mb-2">You&apos;re In!</h2>
-        <p className="text-gray-400 text-sm mb-1">
+        <p className="text-gray-400 text-sm mb-4">
           Your answer: <span className="text-white font-semibold">{selectedOpt?.label}</span>
         </p>
-        <p className="text-gray-400 text-sm mb-1">
-          Entry fee: {formatMoney(quiz.entry_fee)}
-        </p>
-        <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 rounded-xl p-4 mt-4 mb-6 mx-8">
-          <p className="text-xs text-gray-400 mb-1">If you answer correctly & get drawn</p>
-          <p className="text-yellow-400 font-bold text-2xl">{formatMoney(prizePerWinner)}</p>
+        <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 rounded-xl p-4 mb-6 mx-8">
+          <p className="text-xs text-gray-400 mb-1">You could win</p>
+          <p className="text-yellow-400 font-bold text-3xl">{formatMoney(prizePerWinner)}</p>
         </div>
         <p className="text-xs text-gray-500 mb-6">
-          Draw at: {quiz.draw_at ? new Date(quiz.draw_at).toLocaleString('en-ZA') : 'TBA'}
+          Draw starts at {quiz.draw_at ? new Date(quiz.draw_at).toLocaleString('en-ZA') : 'TBA'}
         </p>
         <button
           onClick={() => router.push('/quiz')}
-          className="bg-purple-500 text-white font-semibold px-8 py-3 rounded-full"
+          className="bg-yellow-500 text-black font-semibold px-8 py-3 rounded-full"
         >
-          More Quizzes
+          More Prizes
         </button>
       </div>
     );
@@ -117,72 +129,33 @@ export default function QuizDetailPage() {
         <span className="text-sm">Back</span>
       </button>
 
-      {/* Quiz Card */}
-      <div className="bg-[#1a1a2e] rounded-xl p-4 mb-4">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="bg-purple-500/20 rounded-full p-2">
-            <HelpCircle size={20} className="text-purple-400" />
-          </div>
-          <span className="text-xs text-purple-400 bg-purple-400/10 px-2 py-0.5 rounded-full">
-            {quiz.category}
-          </span>
-          {!isActive && (
-            <span className="text-xs text-gray-400 bg-gray-400/10 px-2 py-0.5 rounded-full ml-auto">
-              {quiz.status === 'settled' ? 'Drawn' : quiz.status}
-            </span>
-          )}
+      {/* Prize Hero */}
+      <div className="bg-gradient-to-br from-yellow-500/15 to-orange-500/15 rounded-2xl p-5 mb-4 text-center">
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <Tv size={20} className="text-yellow-400" />
+          <span className="text-xs text-yellow-400/80 font-semibold uppercase tracking-wider">TV Grand Prize</span>
         </div>
-        <h2 className="text-lg font-bold leading-snug">{quiz.question}</h2>
+        <p className="text-yellow-400 font-bold text-4xl mb-1">{formatMoneyShort(quiz.prize_pool)}</p>
+        <p className="text-xs text-gray-400">
+          {quiz.winner_count} winners &middot; {formatMoneyShort(prizePerWinner)} each
+        </p>
       </div>
 
-      {/* Prize Info */}
-      <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 rounded-xl p-4 mb-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="text-center">
-            <Trophy size={20} className="text-yellow-400 mx-auto mb-1" />
-            <p className="text-xs text-gray-400">Total Prize Pool</p>
-            <p className="text-yellow-400 font-bold text-lg">{formatMoneyShort(quiz.prize_pool)}</p>
-          </div>
-          <div className="text-center">
-            <Gift size={20} className="text-yellow-400 mx-auto mb-1" />
-            <p className="text-xs text-gray-400">Per Winner ({quiz.winner_count})</p>
-            <p className="text-yellow-400 font-bold text-lg">{formatMoneyShort(prizePerWinner)}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats bar */}
-      <div className="flex items-center justify-between mb-4 text-xs text-gray-500">
-        <span className="flex items-center gap-1">
-          <Ticket size={12} />
-          Entry: {formatMoneyShort(quiz.entry_fee)}
-        </span>
-        <span className="flex items-center gap-1">
-          <Users size={12} />
-          {quiz.participants.toLocaleString()} joined
-        </span>
-        <span className="flex items-center gap-1">
-          <Clock size={12} />
-          {isActive ? 'Ends' : 'Ended'} {new Date(quiz.expires_at).toLocaleDateString('en-ZA', {
-            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-          })}
-        </span>
-      </div>
-
-      {/* How it works */}
+      {/* Countdown */}
       {isActive && (
-        <div className="bg-[#1a1a2e] rounded-xl p-4 mb-4">
-          <h3 className="font-semibold text-sm mb-2 flex items-center gap-2">
-            <Star size={14} className="text-yellow-400" /> How it works
-          </h3>
-          <ol className="text-xs text-gray-400 space-y-1 list-decimal list-inside">
-            <li>Pay {formatMoneyShort(quiz.entry_fee)} entry fee & pick your answer</li>
-            <li>Correct answers enter the lottery draw</li>
-            <li>{quiz.winner_count} lucky winners drawn randomly</li>
-            <li>Each winner gets {formatMoneyShort(prizePerWinner)}!</li>
-          </ol>
+        <div className="bg-[#1a1a2e] rounded-xl p-4 mb-4 text-center">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Clock size={14} className="text-red-400" />
+            <span className="text-xs text-red-400 font-semibold uppercase">Time Remaining</span>
+          </div>
+          <Countdown expiresAt={quiz.expires_at} />
         </div>
       )}
+
+      {/* Question */}
+      <div className="bg-[#1a1a2e] rounded-xl p-4 mb-4">
+        <h2 className="text-lg font-bold leading-snug">{quiz.question}</h2>
+      </div>
 
       {/* Options */}
       <h3 className="font-semibold text-sm mb-2">
@@ -190,9 +163,6 @@ export default function QuizDetailPage() {
       </h3>
       <div className="space-y-2 mb-5">
         {quiz.options.map((opt) => {
-          const pct = totalPicks > 0
-            ? Math.round((opt.pick_count / totalPicks) * 100)
-            : Math.round(100 / quiz.options.length);
           const isCorrect = quiz.correct_option_id === opt.id;
           const isSelected = selectedOption === opt.id;
 
@@ -201,78 +171,61 @@ export default function QuizDetailPage() {
               key={opt.id}
               onClick={() => isActive && !alreadyJoined && setSelectedOption(opt.id)}
               disabled={!isActive || alreadyJoined}
-              className={`w-full p-4 rounded-xl text-left transition-all border-2 relative overflow-hidden ${
+              className={`w-full p-4 rounded-xl text-left transition-all border-2 ${
                 isCorrect
                   ? 'border-green-500 bg-green-500/10'
                   : isSelected
-                    ? 'border-purple-500 bg-purple-500/10'
+                    ? 'border-yellow-500 bg-yellow-500/10'
                     : 'border-transparent bg-[#1a1a2e]'
               }`}
             >
-              {/* Background bar */}
-              <div
-                className={`absolute inset-y-0 left-0 ${isCorrect ? 'bg-green-500/10' : 'bg-purple-500/5'}`}
-                style={{ width: `${pct}%` }}
-              />
-              <div className="relative flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {isCorrect && <Check size={16} className="text-green-400" />}
-                  <span className="font-medium text-sm">{opt.label}</span>
+              <div className="flex items-center gap-3">
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                  isCorrect
+                    ? 'border-green-500 bg-green-500'
+                    : isSelected
+                      ? 'border-yellow-500 bg-yellow-500'
+                      : 'border-gray-600'
+                }`}>
+                  {(isSelected || isCorrect) && <Check size={12} className={isCorrect ? 'text-white' : 'text-black'} />}
                 </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-gray-500">
-                    {pct}% &middot; {opt.pick_count.toLocaleString()} picks
-                  </p>
-                </div>
+                <span className={`font-medium text-sm ${isCorrect ? 'text-green-400' : ''}`}>
+                  {opt.label}
+                </span>
               </div>
             </button>
           );
         })}
       </div>
 
-      {/* Already joined notice */}
+      {/* Already joined */}
       {alreadyJoined && isActive && (
-        <div className="bg-purple-500/10 rounded-xl p-4 text-center mb-4">
-          <Check size={20} className="text-purple-400 mx-auto mb-1" />
-          <p className="text-sm text-purple-400 font-semibold">You&apos;ve already joined this quiz!</p>
-          <p className="text-xs text-gray-400 mt-1">
-            Wait for the draw at {quiz.draw_at ? new Date(quiz.draw_at).toLocaleString('en-ZA') : 'TBA'}
-          </p>
+        <div className="bg-yellow-500/10 rounded-xl p-4 text-center mb-4">
+          <Check size={20} className="text-yellow-400 mx-auto mb-1" />
+          <p className="text-sm text-yellow-400 font-semibold">You&apos;re in the draw!</p>
+          <p className="text-xs text-gray-400 mt-1">Good luck! Results announced live on TV.</p>
         </div>
       )}
 
       {/* Join button */}
       {isActive && !alreadyJoined && (
         <div className="space-y-3">
-          <div className="bg-[#1a1a2e] rounded-xl p-4">
-            <div className="flex justify-between text-sm mb-1">
-              <span className="text-gray-400">Entry Fee</span>
-              <span className="font-bold">{formatMoney(quiz.entry_fee)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Your Balance</span>
-              <span className={`font-medium ${(user?.balance ?? 0) >= quiz.entry_fee ? 'text-green-400' : 'text-red-400'}`}>
-                {formatMoney(user?.balance ?? 0)}
-              </span>
-            </div>
-          </div>
-
           <button
             onClick={handleJoinQuiz}
             disabled={!canJoin}
             className={`w-full py-4 rounded-2xl text-base font-bold transition-all ${
               canJoin
-                ? 'bg-purple-500 text-white active:bg-purple-600'
+                ? 'bg-yellow-500 text-black active:bg-yellow-600'
                 : 'bg-gray-700 text-gray-500'
             }`}
           >
             {placing
               ? 'Joining...'
               : !selectedOption
-                ? 'Pick an answer first'
+                ? 'Pick an answer to enter'
                 : (user?.balance ?? 0) < quiz.entry_fee
                   ? 'Insufficient balance'
-                  : `Join Quiz - ${formatMoney(quiz.entry_fee)}`
+                  : `Enter for ${formatMoney(quiz.entry_fee)} - Win ${formatMoneyShort(prizePerWinner)}!`
             }
           </button>
         </div>
@@ -299,21 +252,6 @@ export default function QuizDetailPage() {
                 ...and {quiz.winner_count - quiz.winners.length} more winners
               </p>
             )}
-          </div>
-
-          <div className="mt-3 pt-3 border-t border-gray-800 text-xs text-gray-500">
-            <div className="flex justify-between">
-              <span>Correct answers</span>
-              <span>{quiz.correct_count.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Winners drawn</span>
-              <span>{quiz.winner_count}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Prize per winner</span>
-              <span className="text-yellow-400">{formatMoney(prizePerWinner)}</span>
-            </div>
           </div>
         </div>
       )}
