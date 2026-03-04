@@ -88,18 +88,19 @@ export const mockQuizzes: Quiz[] = [
     question: 'Who won the 2024 Africa Cup of Nations?',
     category: 'Soccer Trivia',
     options: [
-      { id: 'qopt-001', quiz_id: 'quiz-001', label: 'Nigeria', total_amount: 120000, bet_count: 35 },
-      { id: 'qopt-002', quiz_id: 'quiz-001', label: 'Ivory Coast', total_amount: 200000, bet_count: 55 },
-      { id: 'qopt-003', quiz_id: 'quiz-001', label: 'South Africa', total_amount: 80000, bet_count: 20 },
-      { id: 'qopt-004', quiz_id: 'quiz-001', label: 'DR Congo', total_amount: 40000, bet_count: 10 },
+      { id: 'qopt-001', quiz_id: 'quiz-001', label: 'Nigeria', pick_count: 35120 },
+      { id: 'qopt-002', quiz_id: 'quiz-001', label: 'Ivory Coast', pick_count: 58340 },
+      { id: 'qopt-003', quiz_id: 'quiz-001', label: 'South Africa', pick_count: 22100 },
+      { id: 'qopt-004', quiz_id: 'quiz-001', label: 'DR Congo', pick_count: 9440 },
     ],
     status: 'active',
-    min_bet: 100,
-    max_bet: 10000,
-    min_players: 10,
-    rake_percent: 10,
-    total_pool: 440000,
-    expires_at: '2026-03-03T23:59:00Z',
+    entry_fee: 1000,           // R10
+    prize_pool: 10000000,      // R100,000
+    winner_count: 100,         // 100 lucky winners
+    participants: 125000,      // 125,000 people joined
+    correct_count: 0,          // Not yet revealed
+    expires_at: '2026-03-05T20:00:00Z',
+    draw_at: '2026-03-05T20:30:00Z',
     created_at: '2026-03-03T08:00:00Z',
   },
   {
@@ -107,19 +108,46 @@ export const mockQuizzes: Quiz[] = [
     question: 'How many Ballon d\'Or awards has Messi won?',
     category: 'Soccer Trivia',
     options: [
-      { id: 'qopt-005', quiz_id: 'quiz-002', label: '6', total_amount: 50000, bet_count: 15 },
-      { id: 'qopt-006', quiz_id: 'quiz-002', label: '7', total_amount: 60000, bet_count: 18 },
-      { id: 'qopt-007', quiz_id: 'quiz-002', label: '8', total_amount: 180000, bet_count: 52 },
-      { id: 'qopt-008', quiz_id: 'quiz-002', label: '9', total_amount: 30000, bet_count: 8 },
+      { id: 'qopt-005', quiz_id: 'quiz-002', label: '6', pick_count: 15200 },
+      { id: 'qopt-006', quiz_id: 'quiz-002', label: '7', pick_count: 18900 },
+      { id: 'qopt-007', quiz_id: 'quiz-002', label: '8', pick_count: 52300 },
+      { id: 'qopt-008', quiz_id: 'quiz-002', label: '9', pick_count: 8600 },
     ],
     status: 'active',
-    min_bet: 100,
-    max_bet: 10000,
-    min_players: 10,
-    rake_percent: 10,
-    total_pool: 320000,
-    expires_at: '2026-03-03T23:59:00Z',
+    entry_fee: 500,            // R5
+    prize_pool: 5000000,       // R50,000
+    winner_count: 50,          // 50 lucky winners
+    participants: 95000,       // 95,000 people joined
+    correct_count: 0,
+    expires_at: '2026-03-04T22:00:00Z',
+    draw_at: '2026-03-04T22:30:00Z',
     created_at: '2026-03-03T08:00:00Z',
+  },
+  {
+    id: 'quiz-003',
+    question: 'Which country hosted the 2010 FIFA World Cup?',
+    category: 'World Cup',
+    options: [
+      { id: 'qopt-009', quiz_id: 'quiz-003', label: 'Brazil', pick_count: 5200 },
+      { id: 'qopt-010', quiz_id: 'quiz-003', label: 'South Africa', pick_count: 180000 },
+      { id: 'qopt-011', quiz_id: 'quiz-003', label: 'Germany', pick_count: 3100 },
+      { id: 'qopt-012', quiz_id: 'quiz-003', label: 'Russia', pick_count: 1700 },
+    ],
+    correct_option_id: 'qopt-010',
+    status: 'settled',
+    entry_fee: 1000,           // R10
+    prize_pool: 20000000,      // R200,000
+    winner_count: 200,
+    participants: 190000,
+    correct_count: 180000,
+    winners: [
+      { user_id: 'user-w1', display_name: 'Thando M.', prize_amount: 100000 },
+      { user_id: 'user-w2', display_name: 'Sipho K.', prize_amount: 100000 },
+    ],
+    expires_at: '2026-03-02T20:00:00Z',
+    draw_at: '2026-03-02T20:30:00Z',
+    settled_at: '2026-03-02T20:35:00Z',
+    created_at: '2026-03-01T08:00:00Z',
   },
 ];
 
@@ -142,9 +170,9 @@ export const mockBets: Bet[] = [
     bet_type: 'quiz',
     quiz_id: 'quiz-001',
     option_id: 'qopt-002',
-    amount: 500,
-    fund_source: 'free_bet',
-    potential_win: 1100,
+    amount: 1000,               // Entry fee R10
+    fund_source: 'balance',
+    potential_win: 10000000,     // Prize pool R100,000 (if lucky)
     status: 'pending',
     created_at: '2026-03-03T12:30:00Z',
   },

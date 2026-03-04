@@ -49,22 +49,25 @@ export interface BetOption {
   bet_count: number;       // Number of bets
 }
 
-// --- Quiz ---
-export type QuizStatus = 'active' | 'settled' | 'cancelled';
+// --- Quiz (Lottery Model) ---
+// Fixed entry fee + fixed prize pool. Correct answers enter a lottery draw.
+export type QuizStatus = 'active' | 'drawing' | 'settled' | 'cancelled';
 
 export interface Quiz {
   id: string;
   question: string;
   category: string;
   options: QuizOption[];
-  correct_option_id?: string; // Null until settled
+  correct_option_id?: string;     // Null until settled
   status: QuizStatus;
-  min_bet: number;
-  max_bet: number;
-  min_players: number;
-  rake_percent: number;
-  total_pool: number;
+  entry_fee: number;              // Fixed entry fee (cents), e.g. 1000 = R10
+  prize_pool: number;             // Fixed prize pool set by admin (cents)
+  winner_count: number;           // Number of lottery winners to draw
+  participants: number;           // Total participants
+  correct_count: number;          // Number of correct answers (lottery pool size)
+  winners?: QuizWinner[];         // Drawn winners (after settlement)
   expires_at: string;
+  draw_at?: string;               // Scheduled draw time
   settled_at?: string;
   created_at: string;
 }
@@ -73,8 +76,29 @@ export interface QuizOption {
   id: string;
   quiz_id: string;
   label: string;
-  total_amount: number;
-  bet_count: number;
+  pick_count: number;             // Number of people who picked this option
+}
+
+export interface QuizWinner {
+  user_id: string;
+  display_name: string;
+  prize_amount: number;           // cents
+}
+
+// --- Quiz: TV Sync Message ---
+export interface QuizTvMessage {
+  quiz_id: string;
+  type: 'quiz_started' | 'quiz_countdown' | 'quiz_answer_reveal' | 'quiz_drawing' | 'quiz_winners';
+  question?: string;
+  options?: { label: string; pick_count: number }[];
+  correct_answer?: string;
+  participants?: number;
+  correct_count?: number;
+  winners?: QuizWinner[];
+  prize_pool?: number;
+  prize_per_winner?: number;
+  countdown_seconds?: number;
+  timestamp: string;
 }
 
 // --- Bet ---

@@ -264,6 +264,133 @@ function createErrorResult(event: SettlementEvent, errors: string[]): Settlement
   };
 }
 
+// ==================== QUIZ LOTTERY SETTLEMENT ====================
+
+export interface QuizSettlementInput {
+  id: string;
+  question: string;
+  entry_fee: number;
+  prize_pool: number;
+  winner_count: number;
+  participants: number;
+  options: { id: string; label: string; pick_count: number }[];
+  correct_option_id: string;
+}
+
+export interface QuizSettlementBet {
+  id: string;
+  user_id: string;
+  display_name: string;
+  option_id: string;
+  amount: number;
+}
+
+export interface QuizSettlementResult {
+  quiz_id: string;
+  question: string;
+  correct_option_id: string;
+  correct_option_label: string;
+  total_participants: number;
+  correct_count: number;
+  total_revenue: number;          // entry_fee * participants
+  prize_pool: number;
+  platform_profit: number;        // revenue - prize_pool
+  winner_count: number;           // actual drawn winners
+  prize_per_winner: number;
+  winners: { user_id: string; display_name: string; prize_amount: number }[];
+  passed: boolean;
+  errors: string[];
+}
+
+// Settle a quiz: reveal answer → filter correct → random draw → distribute prizes
+export function settleQuiz(
+  quiz: QuizSettlementInput,
+  bets: QuizSettlementBet[],
+  users: Map<string, SettlementUser>
+): QuizSettlementResult {
+  const errors: string[] = [];
+
+  const correctOption = quiz.options.find(o => o.id === quiz.correct_option_id);
+  if (!correctOption) {
+    errors.push(`Correct option ${quiz.correct_option_id} not found`);
+    return {
+      quiz_id: quiz.id,
+      question: quiz.question,
+      correct_option_id: quiz.correct_option_id,
+      correct_option_label: 'ERROR',
+      total_participants: quiz.participants,
+      correct_count: 0,
+      total_revenue: quiz.entry_fee * quiz.participants,
+      prize_pool: quiz.prize_pool,
+      platform_profit: quiz.entry_fee * quiz.participants,
+      winner_count: 0,
+      prize_per_winner: 0,
+      winners: [],
+      passed: false,
+      errors,
+    };
+  }
+
+  // Filter correct answers
+  const correctBets = bets.filter(b => b.option_id === quiz.correct_option_id);
+  const correctCount = correctBets.length;
+
+  // Determine actual winner count (can't exceed correct answers)
+  const actualWinnerCount = Math.min(quiz.winner_count, correctCount);
+  const prizePerWinner = actualWinnerCount > 0
+    ? Math.floor(quiz.prize_pool / actualWinnerCount)
+    : 0;
+
+  // Random draw from correct answers
+  const shuffled = [...correctBets].sort(() => Math.random() - 0.5);
+  const drawnWinners = shuffled.slice(0, actualWinnerCount);
+
+  // Distribute prizes
+  const winners: QuizSettlementResult['winners'] = [];
+  let totalPayout = 0;
+
+  for (const bet of drawnWinners) {
+    const user = users.get(bet.user_id);
+    if (user) {
+      user.balance += prizePerWinner;
+    }
+    winners.push({
+      user_id: bet.user_id,
+      display_name: bet.display_name,
+      prize_amount: prizePerWinner,
+    });
+    totalPayout += prizePerWinner;
+  }
+
+  const totalRevenue = quiz.entry_fee * bets.length;
+  const platformProfit = totalRevenue - totalPayout;
+
+  // Validation
+  if (totalPayout > quiz.prize_pool) {
+    errors.push(`Payout ${totalPayout} exceeds prize pool ${quiz.prize_pool}`);
+  }
+  if (platformProfit < 0) {
+    errors.push(`Platform profit is negative: ${platformProfit}`);
+  }
+
+  return {
+    quiz_id: quiz.id,
+    question: quiz.question,
+    correct_option_id: quiz.correct_option_id,
+    correct_option_label: correctOption.label,
+    total_participants: bets.length,
+    correct_count: correctCount,
+    total_revenue: totalRevenue,
+    prize_pool: quiz.prize_pool,
+    platform_profit: platformProfit,
+    winner_count: actualWinnerCount,
+    prize_per_winner: prizePerWinner,
+    winners,
+    passed: errors.length === 0,
+    errors,
+  };
+}
+
 // ==================== TEST DATA GENERATOR ====================
 
 const TEAM_NAMES = [

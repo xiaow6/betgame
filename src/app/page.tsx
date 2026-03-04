@@ -117,9 +117,11 @@ export default function HomePage() {
                   ))}
                 </div>
                 <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                  <span>Pool: {formatMoneyShort(quiz.total_pool)}</span>
+                  <span className="text-yellow-400 font-semibold">Prize: {formatMoneyShort(quiz.prize_pool)}</span>
                   <span>·</span>
-                  <span>{quiz.options.reduce((sum, o) => sum + o.bet_count, 0)} players</span>
+                  <span>Entry: {formatMoneyShort(quiz.entry_fee)}</span>
+                  <span>·</span>
+                  <span>{quiz.participants.toLocaleString()} joined</span>
                 </div>
               </div>
             </Link>
