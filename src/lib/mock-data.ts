@@ -1,0 +1,196 @@
+// ============================================
+// Mock data for UI development (before Supabase)
+// ============================================
+
+import { SportEvent, Quiz, Bet, Transaction, User } from '@/types';
+
+export const mockUser: User = {
+  id: 'user-001',
+  phone: '+27812345678',
+  display_name: 'TestUser',
+  balance: 15000,         // R150
+  free_bet_balance: 500,  // R5
+  referral_code: 'BG-ABC123',
+  status: 'active',
+  created_at: '2026-03-01T10:00:00Z',
+  updated_at: '2026-03-03T10:00:00Z',
+};
+
+export const mockEvents: SportEvent[] = [
+  {
+    id: 'evt-001',
+    title: 'Premier League',
+    description: 'Manchester United vs Liverpool',
+    category: 'soccer',
+    home_team: 'Man United',
+    away_team: 'Liverpool',
+    start_time: '2026-03-05T19:00:00Z',
+    status: 'upcoming',
+    options: [
+      { id: 'opt-001', event_id: 'evt-001', label: 'Man United', odds: 2.8, total_amount: 250000, bet_count: 45 },
+      { id: 'opt-002', event_id: 'evt-001', label: 'Draw', odds: 3.2, total_amount: 180000, bet_count: 30 },
+      { id: 'opt-003', event_id: 'evt-001', label: 'Liverpool', odds: 2.1, total_amount: 320000, bet_count: 62 },
+    ],
+    min_bet: 100,
+    max_bet: 50000,
+    min_players: 10,
+    rake_percent: 10,
+    total_pool: 750000,
+    created_at: '2026-03-01T10:00:00Z',
+  },
+  {
+    id: 'evt-002',
+    title: 'PSL Match',
+    description: 'Kaizer Chiefs vs Orlando Pirates',
+    category: 'soccer',
+    home_team: 'Chiefs',
+    away_team: 'Pirates',
+    start_time: '2026-03-04T15:00:00Z',
+    status: 'upcoming',
+    options: [
+      { id: 'opt-004', event_id: 'evt-002', label: 'Chiefs', odds: 2.5, total_amount: 180000, bet_count: 38 },
+      { id: 'opt-005', event_id: 'evt-002', label: 'Draw', odds: 3.0, total_amount: 120000, bet_count: 22 },
+      { id: 'opt-006', event_id: 'evt-002', label: 'Pirates', odds: 2.4, total_amount: 200000, bet_count: 42 },
+    ],
+    min_bet: 100,
+    max_bet: 50000,
+    min_players: 10,
+    rake_percent: 10,
+    total_pool: 500000,
+    created_at: '2026-03-01T10:00:00Z',
+  },
+  {
+    id: 'evt-003',
+    title: 'Rugby Championship',
+    description: 'Springboks vs All Blacks',
+    category: 'rugby',
+    home_team: 'Springboks',
+    away_team: 'All Blacks',
+    start_time: '2026-03-06T17:00:00Z',
+    status: 'upcoming',
+    options: [
+      { id: 'opt-007', event_id: 'evt-003', label: 'Springboks', odds: 1.8, total_amount: 450000, bet_count: 95 },
+      { id: 'opt-008', event_id: 'evt-003', label: 'Draw', odds: 8.0, total_amount: 30000, bet_count: 8 },
+      { id: 'opt-009', event_id: 'evt-003', label: 'All Blacks', odds: 2.2, total_amount: 320000, bet_count: 67 },
+    ],
+    min_bet: 100,
+    max_bet: 50000,
+    min_players: 10,
+    rake_percent: 10,
+    total_pool: 800000,
+    created_at: '2026-03-01T10:00:00Z',
+  },
+];
+
+export const mockQuizzes: Quiz[] = [
+  {
+    id: 'quiz-001',
+    question: 'Who won the 2024 Africa Cup of Nations?',
+    category: 'Soccer Trivia',
+    options: [
+      { id: 'qopt-001', quiz_id: 'quiz-001', label: 'Nigeria', total_amount: 120000, bet_count: 35 },
+      { id: 'qopt-002', quiz_id: 'quiz-001', label: 'Ivory Coast', total_amount: 200000, bet_count: 55 },
+      { id: 'qopt-003', quiz_id: 'quiz-001', label: 'South Africa', total_amount: 80000, bet_count: 20 },
+      { id: 'qopt-004', quiz_id: 'quiz-001', label: 'DR Congo', total_amount: 40000, bet_count: 10 },
+    ],
+    status: 'active',
+    min_bet: 100,
+    max_bet: 10000,
+    min_players: 10,
+    rake_percent: 10,
+    total_pool: 440000,
+    expires_at: '2026-03-03T23:59:00Z',
+    created_at: '2026-03-03T08:00:00Z',
+  },
+  {
+    id: 'quiz-002',
+    question: 'How many Ballon d\'Or awards has Messi won?',
+    category: 'Soccer Trivia',
+    options: [
+      { id: 'qopt-005', quiz_id: 'quiz-002', label: '6', total_amount: 50000, bet_count: 15 },
+      { id: 'qopt-006', quiz_id: 'quiz-002', label: '7', total_amount: 60000, bet_count: 18 },
+      { id: 'qopt-007', quiz_id: 'quiz-002', label: '8', total_amount: 180000, bet_count: 52 },
+      { id: 'qopt-008', quiz_id: 'quiz-002', label: '9', total_amount: 30000, bet_count: 8 },
+    ],
+    status: 'active',
+    min_bet: 100,
+    max_bet: 10000,
+    min_players: 10,
+    rake_percent: 10,
+    total_pool: 320000,
+    expires_at: '2026-03-03T23:59:00Z',
+    created_at: '2026-03-03T08:00:00Z',
+  },
+];
+
+export const mockBets: Bet[] = [
+  {
+    id: 'bet-001',
+    user_id: 'user-001',
+    bet_type: 'sport',
+    event_id: 'evt-001',
+    option_id: 'opt-003',
+    amount: 2000,
+    fund_source: 'balance',
+    potential_win: 4200,
+    status: 'pending',
+    created_at: '2026-03-03T12:00:00Z',
+  },
+  {
+    id: 'bet-002',
+    user_id: 'user-001',
+    bet_type: 'quiz',
+    quiz_id: 'quiz-001',
+    option_id: 'qopt-002',
+    amount: 500,
+    fund_source: 'free_bet',
+    potential_win: 1100,
+    status: 'pending',
+    created_at: '2026-03-03T12:30:00Z',
+  },
+];
+
+export const mockTransactions: Transaction[] = [
+  {
+    id: 'tx-001',
+    user_id: 'user-001',
+    type: 'signup_bonus',
+    amount: 500,
+    balance_after: 500,
+    fund_type: 'free_bet',
+    description: 'Welcome bonus R5',
+    created_at: '2026-03-01T10:00:00Z',
+  },
+  {
+    id: 'tx-002',
+    user_id: 'user-001',
+    type: 'deposit',
+    amount: 15000,
+    balance_after: 15000,
+    fund_type: 'balance',
+    description: 'Deposit R150',
+    created_at: '2026-03-02T14:00:00Z',
+  },
+  {
+    id: 'tx-003',
+    user_id: 'user-001',
+    type: 'bet_placed',
+    amount: -2000,
+    balance_after: 13000,
+    fund_type: 'balance',
+    reference_id: 'bet-001',
+    description: 'Bet on Liverpool (Man United vs Liverpool)',
+    created_at: '2026-03-03T12:00:00Z',
+  },
+  {
+    id: 'tx-004',
+    user_id: 'user-001',
+    type: 'bet_placed',
+    amount: -500,
+    balance_after: 0,
+    fund_type: 'free_bet',
+    reference_id: 'bet-002',
+    description: 'Quiz bet: Ivory Coast (free bet)',
+    created_at: '2026-03-03T12:30:00Z',
+  },
+];
