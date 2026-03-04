@@ -8,7 +8,7 @@ import { formatMoneyShort } from '@/lib/constants';
 const pageTitles: Record<string, string> = {
   '/': 'BetGame',
   '/betting': 'Sports Betting',
-  '/quiz': 'Quiz',
+  '/quiz': 'TV Grand Prize',
   '/wallet': 'Wallet',
   '/profile': 'My Account',
   '/invite': 'Invite Friends',

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronRight, Users, Trophy, HelpCircle, Flame } from 'lucide-react';
+import { ChevronRight, Users, Trophy, Tv, Flame } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { formatMoneyShort } from '@/lib/constants';
 
@@ -90,38 +90,29 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Quiz Section */}
+      {/* TV Grand Prize Section */}
       <section>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <HelpCircle size={18} className="text-purple-400" />
-            <h2 className="font-bold text-base">Quiz Games</h2>
+            <Tv size={18} className="text-yellow-400" />
+            <h2 className="font-bold text-base">TV Grand Prize</h2>
           </div>
-          <Link href="/quiz" className="text-green-400 text-sm flex items-center gap-0.5">
+          <Link href="/quiz" className="text-yellow-400 text-sm flex items-center gap-0.5">
             All <ChevronRight size={14} />
           </Link>
         </div>
         <div className="space-y-3">
           {activeQuizzes.map((quiz) => (
             <Link key={quiz.id} href={`/quiz/${quiz.id}`} className="block">
-              <div className="bg-[#1a1a2e] rounded-xl p-4 card-press">
-                <span className="text-xs text-purple-400 bg-purple-400/10 px-2 py-0.5 rounded-full">
-                  {quiz.category}
-                </span>
-                <p className="font-semibold text-sm mt-2">{quiz.question}</p>
-                <div className="grid grid-cols-2 gap-2 mt-3">
-                  {quiz.options.map((opt) => (
-                    <div key={opt.id} className="bg-[#0f0f23] rounded-lg px-3 py-2 text-center">
-                      <p className="text-xs text-gray-300 truncate">{opt.label}</p>
-                    </div>
-                  ))}
+              <div className="bg-gradient-to-br from-[#1a1a2e] to-[#1e1035] rounded-xl overflow-hidden card-press">
+                <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 px-4 py-2 text-center">
+                  <span className="text-yellow-400 font-bold text-xl">{formatMoneyShort(quiz.prize_pool)}</span>
                 </div>
-                <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                  <span className="text-yellow-400 font-semibold">Prize: {formatMoneyShort(quiz.prize_pool)}</span>
-                  <span>·</span>
-                  <span>Entry: {formatMoneyShort(quiz.entry_fee)}</span>
-                  <span>·</span>
-                  <span>{quiz.participants.toLocaleString()} joined</span>
+                <div className="px-4 py-3">
+                  <p className="font-semibold text-sm mb-2">{quiz.question}</p>
+                  <span className="text-green-400 font-bold text-xs bg-green-500/10 px-2 py-1 rounded-lg">
+                    Only {formatMoneyShort(quiz.entry_fee)} to enter
+                  </span>
                 </div>
               </div>
             </Link>
