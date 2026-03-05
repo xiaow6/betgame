@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Tv, Clock, Trophy } from 'lucide-react';
-import { useStore } from '@/store/useStore';
+import { Tv, Clock, Trophy, Loader2 } from 'lucide-react';
 import { formatMoneyShort } from '@/lib/constants';
+import type { Quiz } from '@/types';
 
 function Countdown({ expiresAt }: { expiresAt: string }) {
   const [timeLeft, setTimeLeft] = useState('');
@@ -27,9 +27,32 @@ function Countdown({ expiresAt }: { expiresAt: string }) {
 }
 
 export default function QuizPage() {
-  const { quizzes } = useStore();
-  const activeQuizzes = quizzes.filter(q => q.status === 'active');
-  const pastQuizzes = quizzes.filter(q => q.status !== 'active');
+  const [activeQuizzes, setActiveQuizzes] = useState<Quiz[]>([]);
+  const [pastQuizzes, setPastQuizzes] = useState<Quiz[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/quizzes')
+      .then(r => r.json())
+      .then(res => {
+        if (res.success) {
+          setActiveQuizzes(res.data.active || []);
+          setPastQuizzes(res.data.settled || []);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-gray-500" />
+      </div>
+    );
+  }
+
+  const allQuizzes = [...activeQuizzes, ...pastQuizzes];
 
   return (
     <div className="px-4 py-4">
@@ -89,7 +112,7 @@ export default function QuizPage() {
         </div>
       )}
 
-      {quizzes.length === 0 && (
+      {allQuizzes.length === 0 && (
         <div className="text-center py-12">
           <Tv size={40} className="mx-auto text-gray-600 mb-3" />
           <p className="text-gray-500">No prizes yet</p>

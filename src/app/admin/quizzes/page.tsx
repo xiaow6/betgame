@@ -1,19 +1,20 @@
 'use client';
 
-import { useState } from 'react';
-import { Plus, CheckCircle, XCircle, Clock, Trophy, Users, Send, Tv, Gift } from 'lucide-react';
-import { useStore } from '@/store/useStore';
+import { useState, useEffect, useCallback } from 'react';
+import { Plus, CheckCircle, XCircle, Clock, Send, Tv, Loader2 } from 'lucide-react';
 import { formatMoneyShort, formatMoney } from '@/lib/constants';
 import type { Quiz, QuizTvMessage } from '@/types';
-import { v4 as uuidv4 } from 'uuid';
 
 type TvMessageType = QuizTvMessage['type'];
 
 export default function AdminQuizzesPage() {
-  const { quizzes, setQuizzes } = useStore();
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [tvLogs, setTvLogs] = useState<QuizTvMessage[]>([]);
   const [showTvPanel, setShowTvPanel] = useState(false);
+  const [settling, setSettling] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
   // Create form state
   const [newQuestion, setNewQuestion] = useState('');
@@ -24,91 +25,84 @@ export default function AdminQuizzesPage() {
   const [newWinnerCount, setNewWinnerCount] = useState('100');
   const [newExpiresHours, setNewExpiresHours] = useState('24');
 
-  function handleCreate() {
-    const options = newOptions.split('\n').filter(Boolean).map((label, i) => ({
-      id: `qopt-new-${Date.now()}-${i}`,
-      quiz_id: '',
-      label: label.trim(),
-      pick_count: 0,
-    }));
+  const fetchQuizzes = useCallback(async () => {
+    try {
+      const res = await fetch('/api/quizzes');
+      const data = await res.json();
+      if (data.success) {
+        const all = [...(data.data.active || []), ...(data.data.settled || [])];
+        setQuizzes(all);
+      }
+    } catch { /* */ }
+    finally { setLoading(false); }
+  }, []);
 
-    if (!newQuestion || options.length < 2) return;
+  useEffect(() => { fetchQuizzes(); }, [fetchQuizzes]);
 
-    const quizId = `quiz-${uuidv4().slice(0, 8)}`;
-    const expiresAt = new Date(Date.now() + Number(newExpiresHours) * 3600000).toISOString();
-    const drawAt = new Date(Date.now() + Number(newExpiresHours) * 3600000 + 1800000).toISOString();
+  async function handleCreate() {
+    const options = newOptions.split('\n').filter(Boolean).map(l => l.trim());
+    if (!newQuestion || options.length < 2 || creating) return;
 
-    const quiz: Quiz = {
-      id: quizId,
-      question: newQuestion,
-      category: newCategory || 'General',
-      options: options.map(o => ({ ...o, quiz_id: quizId })),
-      status: 'active',
-      entry_fee: Math.round(Number(newEntryFee) * 100),
-      prize_pool: Math.round(Number(newPrizePool) * 100),
-      winner_count: Number(newWinnerCount),
-      participants: 0,
-      correct_count: 0,
-      expires_at: expiresAt,
-      draw_at: drawAt,
-      created_at: new Date().toISOString(),
-    };
+    setCreating(true);
+    try {
+      const res = await fetch('/api/quizzes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: newQuestion,
+          category: newCategory || 'General',
+          entry_fee: Math.round(Number(newEntryFee) * 100),
+          prize_pool: Math.round(Number(newPrizePool) * 100),
+          winner_count: Number(newWinnerCount),
+          expires_hours: Number(newExpiresHours),
+          options,
+        }),
+      });
 
-    setQuizzes([quiz, ...quizzes]);
-    setShowCreate(false);
-    setNewQuestion('');
-    setNewCategory('');
-    setNewOptions('');
-    setNewEntryFee('10');
-    setNewPrizePool('100000');
-    setNewWinnerCount('100');
-
-    // Auto-send TV message
-    sendTvMessage(quiz, 'quiz_started');
+      const data = await res.json();
+      if (data.success && data.data) {
+        setShowCreate(false);
+        setNewQuestion('');
+        setNewCategory('');
+        setNewOptions('');
+        setNewEntryFee('10');
+        setNewPrizePool('100000');
+        setNewWinnerCount('100');
+        sendTvMessage(data.data, 'quiz_started');
+        await fetchQuizzes();
+      }
+    } catch { /* */ }
+    finally { setCreating(false); }
   }
 
-  function handleSetCorrectAnswer(quiz: Quiz, optionId: string) {
-    const correctOption = quiz.options.find(o => o.id === optionId);
-    if (!correctOption) return;
+  async function handleSetCorrectAnswer(quiz: Quiz, optionId: string) {
+    if (settling) return;
+    setSettling(quiz.id);
 
-    const correctCount = correctOption.pick_count;
-    const actualWinners = Math.min(quiz.winner_count, correctCount);
-    const prizePerWinner = actualWinners > 0 ? Math.floor(quiz.prize_pool / actualWinners) : 0;
+    try {
+      const res = await fetch(`/api/quizzes/${quiz.id}/settle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ correct_option_id: optionId }),
+      });
 
-    // Generate mock winners
-    const mockWinnerNames = ['Thando M.', 'Sipho K.', 'Nomsa L.', 'Bongani P.', 'Lerato N.', 'Kagiso D.', 'Zanele S.', 'Mandla R.', 'Precious T.', 'Thabiso W.'];
-    const winners = Array.from({ length: Math.min(actualWinners, 10) }, (_, i) => ({
-      user_id: `user-w${i + 1}`,
-      display_name: mockWinnerNames[i % mockWinnerNames.length],
-      prize_amount: prizePerWinner,
-    }));
-
-    const updated = quizzes.map(q =>
-      q.id === quiz.id
-        ? {
-            ...q,
-            correct_option_id: optionId,
-            correct_count: correctCount,
-            status: 'settled' as const,
-            settled_at: new Date().toISOString(),
-            winners,
-          }
-        : q
-    );
-    setQuizzes(updated);
-
-    // Send TV messages for the reveal sequence
-    const settledQuiz = updated.find(q => q.id === quiz.id)!;
-    sendTvMessage(settledQuiz, 'quiz_answer_reveal');
-    setTimeout(() => sendTvMessage(settledQuiz, 'quiz_drawing'), 500);
-    setTimeout(() => sendTvMessage(settledQuiz, 'quiz_winners'), 1000);
+      const data = await res.json();
+      if (data.success) {
+        const settledQuiz = data.data.quiz;
+        sendTvMessage(settledQuiz, 'quiz_answer_reveal');
+        setTimeout(() => sendTvMessage(settledQuiz, 'quiz_drawing'), 500);
+        setTimeout(() => sendTvMessage(settledQuiz, 'quiz_winners'), 1000);
+        await fetchQuizzes();
+      }
+    } catch { /* */ }
+    finally { setSettling(null); }
   }
 
-  function handleCancel(quizId: string) {
-    const updated = quizzes.map(q =>
+  async function handleCancel(quizId: string) {
+    // TODO: implement cancel API
+    setQuizzes(prev => prev.map(q =>
       q.id === quizId ? { ...q, status: 'cancelled' as const } : q
-    );
-    setQuizzes(updated);
+    ));
   }
 
   function sendTvMessage(quiz: Quiz, type: TvMessageType) {
@@ -130,8 +124,15 @@ export default function AdminQuizzesPage() {
     };
 
     setTvLogs(prev => [msg, ...prev]);
-    // In production: POST to WebSocket / API endpoint for TV
     console.log('[TV SYNC]', JSON.stringify(msg, null, 2));
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-gray-500" />
+      </div>
+    );
   }
 
   return (
@@ -200,10 +201,6 @@ export default function AdminQuizzesPage() {
               ))}
             </div>
           )}
-
-          <p className="text-[10px] text-gray-600">
-            Messages are logged to console. In production, connect to WebSocket/API for real-time TV overlay.
-          </p>
         </div>
       )}
 
@@ -318,9 +315,10 @@ export default function AdminQuizzesPage() {
             </button>
             <button
               onClick={handleCreate}
-              disabled={!newQuestion || newOptions.split('\n').filter(Boolean).length < 2}
-              className="flex-1 bg-purple-500 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
+              disabled={!newQuestion || newOptions.split('\n').filter(Boolean).length < 2 || creating}
+              className="flex-1 bg-purple-500 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
             >
+              {creating && <Loader2 size={14} className="animate-spin" />}
               Create
             </button>
           </div>
@@ -334,6 +332,7 @@ export default function AdminQuizzesPage() {
           const totalRevenue = quiz.entry_fee * quiz.participants;
           const platformProfit = totalRevenue - quiz.prize_pool;
           const prizePerWinner = quiz.winner_count > 0 ? Math.floor(quiz.prize_pool / quiz.winner_count) : 0;
+          const isSettling = settling === quiz.id;
 
           return (
             <div key={quiz.id} className="bg-[#1a1a2e] rounded-xl p-4">
@@ -446,9 +445,15 @@ export default function AdminQuizzesPage() {
                       <button
                         key={opt.id}
                         onClick={() => handleSetCorrectAnswer(quiz, opt.id)}
-                        className="bg-green-500/10 text-green-400 py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 active:bg-green-500/30"
+                        disabled={isSettling}
+                        className="bg-green-500/10 text-green-400 py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 active:bg-green-500/30 disabled:opacity-50"
                       >
-                        <CheckCircle size={12} /> {opt.label}
+                        {isSettling ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <CheckCircle size={12} />
+                        )}
+                        {opt.label}
                       </button>
                     ))}
                   </div>
@@ -463,6 +468,13 @@ export default function AdminQuizzesPage() {
             </div>
           );
         })}
+
+        {quizzes.length === 0 && (
+          <div className="text-center py-12">
+            <Tv size={32} className="mx-auto text-gray-600 mb-2" />
+            <p className="text-gray-500 text-sm">No quizzes yet. Create one above.</p>
+          </div>
+        )}
       </div>
     </div>
   );
