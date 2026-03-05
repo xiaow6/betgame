@@ -60,22 +60,25 @@ export async function POST(request: NextRequest) {
   crypto.getRandomValues(refBytes);
   const reference = `DEP-${Array.from(refBytes).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
 
-  // In production:
-  // 1. Verify payment with gateway (PayFast/Ozow callback)
-  // 2. Use database transaction for atomic balance update
-  // 3. Verify amount matches gateway confirmation
-  // 4. Check for suspicious patterns (velocity, device fingerprint)
+  // Credit user balance in database
+  const { depositToUser } = await import('@/lib/db');
+  const tx = await depositToUser(String(user_id), amountCheck.value, payMethod);
+
+  if (!tx) {
+    return NextResponse.json({ error: 'Deposit failed - user not found' }, { status: 400 });
+  }
 
   const transaction = {
-    id: txId,
+    id: tx.id || txId,
     user_id: String(user_id),
     type: 'deposit',
     amount: amountCheck.value,
     method: payMethod,
     status: 'completed',
     reference,
-    created_at: new Date().toISOString(),
-    message: 'Deposit successful (mock)',
+    balance_after: tx.balance_after,
+    created_at: tx.created_at,
+    message: 'Deposit successful',
   };
 
   const result = { success: true, data: transaction };

@@ -1,10 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Wallet, ArrowUpCircle, ArrowDownCircle, Gift, Trophy, RefreshCw, Plus, Minus, Check, CreditCard, Smartphone, Building2, AlertCircle } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { formatMoney, formatMoneyShort } from '@/lib/constants';
-import { v4 as uuidv4 } from 'uuid';
 import type { TxType, Transaction } from '@/types';
 
 const txIcons: Record<TxType, typeof Wallet> = {
@@ -40,44 +39,63 @@ const payMethods = [
 const quickAmounts = [5, 10, 20, 50, 100, 200];
 
 export default function WalletPage() {
-  const { user, transactions, addTransaction, updateBalance } = useStore();
+  const { user, updateBalance } = useStore();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [showDeposit, setShowDeposit] = useState(false);
   const [depositAmount, setDepositAmount] = useState('');
   const [payMethod, setPayMethod] = useState<PayMethod>('eft');
   const [depositing, setDepositing] = useState(false);
   const [depositSuccess, setDepositSuccess] = useState(false);
 
+  // Fetch transactions from API
+  useEffect(() => {
+    if (!user?.id) return;
+    fetch(`/api/user/transactions?user_id=${user.id}`)
+      .then(r => r.json())
+      .then(res => { if (res.data) setTransactions(res.data); })
+      .catch(() => {});
+  }, [user?.id]);
+
   const amountCents = Math.round(parseFloat(depositAmount || '0') * 100);
   const canDeposit = amountCents >= 500 && amountCents <= 1000000 && !depositing;
 
-  function handleDeposit() {
+  async function handleDeposit() {
     if (!canDeposit || !user) return;
     setDepositing(true);
 
-    setTimeout(() => {
-      const tx: Transaction = {
-        id: uuidv4(),
-        user_id: user.id,
-        type: 'deposit',
-        amount: amountCents,
-        balance_after: user.balance + amountCents,
-        fund_type: 'balance',
-        reference_id: `DEP-${Date.now().toString(36).toUpperCase()}`,
-        description: `Deposit via ${payMethod === 'eft' ? 'EFT' : payMethod === 'card' ? 'Card' : 'Airtime'}`,
-        created_at: new Date().toISOString(),
-      };
+    try {
+      const res = await fetch('/api/payment/deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user.id,
+          amount: amountCents,
+          method: payMethod,
+        }),
+      });
 
-      addTransaction(tx);
-      updateBalance(amountCents, 'balance');
+      const data = await res.json();
+
+      if (data.success) {
+        updateBalance(amountCents, 'balance');
+        // Refresh transactions
+        const txRes = await fetch(`/api/user/transactions?user_id=${user.id}`);
+        const txData = await txRes.json();
+        if (txData.data) setTransactions(txData.data);
+
+        setDepositing(false);
+        setDepositSuccess(true);
+        setTimeout(() => {
+          setDepositSuccess(false);
+          setShowDeposit(false);
+          setDepositAmount('');
+        }, 2000);
+      } else {
+        setDepositing(false);
+      }
+    } catch {
       setDepositing(false);
-      setDepositSuccess(true);
-
-      setTimeout(() => {
-        setDepositSuccess(false);
-        setShowDeposit(false);
-        setDepositAmount('');
-      }, 2000);
-    }, 1200);
+    }
   }
 
   return (

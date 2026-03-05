@@ -2,11 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Check, Clock, Trophy, Tv, Share2, Users, Ticket, Sparkles } from 'lucide-react';
+import { ArrowLeft, Check, Clock, Trophy, Tv, Share2, Sparkles, Loader2 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { formatMoneyShort, formatMoney } from '@/lib/constants';
-import { v4 as uuidv4 } from 'uuid';
-import type { Bet, Transaction } from '@/types';
+import type { Quiz, Bet } from '@/types';
 
 // ─── Countdown Timer ───
 function Countdown({ expiresAt }: { expiresAt: string }) {
@@ -86,78 +85,87 @@ function Confetti() {
 export default function QuizDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { quizzes, user, bets, addBet, addTransaction, updateBalance } = useStore();
-  const quiz = quizzes.find((q) => q.id === id);
+  const { user, updateBalance } = useStore();
 
+  const [quiz, setQuiz] = useState<Quiz | null>(null);
+  const [myBet, setMyBet] = useState<Bet | null>(null);
+  const [loading, setLoading] = useState(true);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [successAnim, setSuccessAnim] = useState(false);
+  const [error, setError] = useState('');
 
-  // Find user's existing bet for this quiz
-  const myBet = bets.find(b => b.quiz_id === quiz?.id && b.user_id === user?.id);
+  // Fetch quiz and user's bet
+  useEffect(() => {
+    async function load() {
+      try {
+        const [quizRes, betRes] = await Promise.all([
+          fetch(`/api/quizzes/${id}`).then(r => r.json()),
+          user?.id
+            ? fetch(`/api/user/bets?user_id=${user.id}`).then(r => r.json())
+            : Promise.resolve({ data: [] }),
+        ]);
+
+        if (quizRes.success) setQuiz(quizRes.data);
+        if (betRes.data) {
+          const existing = betRes.data.find((b: Bet) => b.quiz_id === id);
+          if (existing) setMyBet(existing);
+        }
+      } catch {
+        // fallback
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [id, user?.id]);
+
   const alreadyJoined = !!myBet;
 
-  if (!quiz) {
-    return (
-      <div className="px-4 py-12 text-center">
-        <p className="text-gray-500">Not found</p>
-      </div>
-    );
-  }
+  const handleJoinQuiz = useCallback(async () => {
+    if (!quiz || !user || !selectedOption || placing || alreadyJoined) return;
+    if (user.balance < quiz.entry_fee) return;
 
-  const prizePerWinner = quiz.winner_count > 0
-    ? Math.floor(quiz.prize_pool / quiz.winner_count)
-    : 0;
-  const isActive = quiz.status === 'active';
-  const canJoin = isActive && selectedOption && !placing && !alreadyJoined
-    && (user?.balance ?? 0) >= quiz.entry_fee;
-  const myPickedOption = myBet ? quiz.options.find(o => o.id === myBet.option_id) : null;
-
-  // Mock: entries count (1 base + referrals)
-  const myEntries = 1; // In production: fetch from API based on referrals for this quiz
-
-  function handleJoinQuiz() {
-    if (!canJoin || !user || !quiz) return;
     setPlacing(true);
+    setError('');
 
-    const bet: Bet = {
-      id: uuidv4(),
-      user_id: user.id,
-      bet_type: 'quiz',
-      quiz_id: quiz.id,
-      option_id: selectedOption!,
-      amount: quiz.entry_fee,
-      fund_source: 'balance',
-      potential_win: prizePerWinner,
-      status: 'pending',
-      created_at: new Date().toISOString(),
-    };
+    try {
+      const res = await fetch(`/api/quizzes/${quiz.id}/bet`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user.id,
+          option_id: selectedOption,
+          amount: quiz.entry_fee,
+          fund_source: 'balance',
+        }),
+      });
 
-    const tx: Transaction = {
-      id: uuidv4(),
-      user_id: user.id,
-      type: 'bet_placed',
-      amount: -quiz.entry_fee,
-      balance_after: user.balance - quiz.entry_fee,
-      fund_type: 'balance',
-      reference_id: bet.id,
-      description: `TV Grand Prize: ${quiz.question.slice(0, 30)}...`,
-      created_at: new Date().toISOString(),
-    };
+      const data = await res.json();
 
-    addBet(bet);
-    addTransaction(tx);
-    updateBalance(-quiz.entry_fee, 'balance');
+      if (!res.ok || !data.success) {
+        setError(data.error || 'Failed to place bet');
+        setPlacing(false);
+        return;
+      }
 
-    // Trigger animation sequence
-    setTimeout(() => {
+      // Update local state
+      if (data.data?.bet) setMyBet(data.data.bet);
+      updateBalance(-quiz.entry_fee, 'balance');
+
+      // Trigger animations
+      setTimeout(() => {
+        setPlacing(false);
+        setShowConfetti(true);
+        setSuccessAnim(true);
+        setTimeout(() => setShowConfetti(false), 4000);
+      }, 600);
+    } catch {
+      setError('Network error, please try again');
       setPlacing(false);
-      setShowConfetti(true);
-      setSuccessAnim(true);
-      setTimeout(() => setShowConfetti(false), 4000);
-    }, 800);
-  }
+    }
+  }, [quiz, user, selectedOption, placing, alreadyJoined, updateBalance]);
 
   async function handleInvite() {
     if (!quiz) return;
@@ -175,6 +183,31 @@ export default function QuizDetailPage() {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-gray-500" />
+      </div>
+    );
+  }
+
+  if (!quiz) {
+    return (
+      <div className="px-4 py-12 text-center">
+        <p className="text-gray-500">Not found</p>
+      </div>
+    );
+  }
+
+  const prizePerWinner = quiz.winner_count > 0
+    ? Math.floor(quiz.prize_pool / quiz.winner_count)
+    : 0;
+  const isActive = quiz.status === 'active';
+  const canJoin = isActive && selectedOption && !placing && !alreadyJoined
+    && (user?.balance ?? 0) >= quiz.entry_fee;
+  const myPickedOption = myBet ? quiz.options.find(o => o.id === myBet.option_id) : null;
+  const myEntries = 1;
+
   // ─── Success overlay after joining ───
   if (successAnim) {
     const selectedOpt = quiz.options.find(o => o.id === selectedOption);
@@ -183,7 +216,6 @@ export default function QuizDetailPage() {
         {showConfetti && <Confetti />}
 
         <div className="text-center animate-bounce-in">
-          {/* Glowing trophy */}
           <div className="relative inline-block mb-5">
             <div className="absolute inset-0 rounded-full animate-prize-glow" />
             <div className="w-20 h-20 bg-yellow-500/20 rounded-full flex items-center justify-center relative">
@@ -199,7 +231,6 @@ export default function QuizDetailPage() {
           </p>
         </div>
 
-        {/* Prize card with glow */}
         <div className="animate-slide-up" style={{ animationDelay: '0.3s' }}>
           <div className="bg-gradient-to-br from-yellow-500/15 to-orange-500/15 rounded-2xl p-6 text-center animate-prize-glow mb-4">
             <p className="text-xs text-gray-400 mb-1">You could win</p>
@@ -210,7 +241,6 @@ export default function QuizDetailPage() {
           </div>
         </div>
 
-        {/* Invite to boost */}
         <div className="animate-slide-up" style={{ animationDelay: '0.5s' }}>
           <div className="bg-[#1a1a2e] rounded-2xl p-5 text-center mb-4">
             <div className="flex items-center justify-center gap-2 mb-2">
@@ -303,7 +333,6 @@ export default function QuizDetailPage() {
             </div>
           </div>
 
-          {/* Invite to boost */}
           <div className="mt-3 pt-3 border-t border-green-500/10">
             <div className="flex items-center gap-2 mb-2">
               <Sparkles size={14} className="text-yellow-400" />
@@ -326,6 +355,13 @@ export default function QuizDetailPage() {
       <div className="bg-[#1a1a2e] rounded-xl p-4 mb-4">
         <h2 className="text-lg font-bold leading-snug">{quiz.question}</h2>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-4 text-center">
+          <p className="text-red-400 text-sm">{error}</p>
+        </div>
+      )}
 
       {/* Options */}
       {!alreadyJoined && (
