@@ -50,7 +50,7 @@ export async function getActiveQuizzes(): Promise<Quiz[]> {
     .select('*, quiz_options:quiz_options(*)')
     .in('status', ['active', 'drawing'])
     .order('expires_at', { ascending: true });
-  if (error) { console.error('getActiveQuizzes error:', error); return []; }
+  if (error) { console.error('getActiveQuizzes error:', JSON.stringify(error)); return []; }
   return (data || []).map(mapQuizRow);
 }
 
@@ -61,7 +61,7 @@ export async function getSettledQuizzes(limit = 10): Promise<Quiz[]> {
     .eq('status', 'settled')
     .order('settled_at', { ascending: false })
     .limit(limit);
-  if (error) { console.error('getSettledQuizzes error:', error); return []; }
+  if (error) { console.error('getSettledQuizzes error:', JSON.stringify(error)); return []; }
   return (data || []).map(mapQuizRow);
 }
 
@@ -94,8 +94,8 @@ export async function createQuiz(quiz: {
     .single();
 
   if (quizError || !quizRow) {
-    console.error('createQuiz error:', quizError);
-    return null;
+    console.error('createQuiz error:', JSON.stringify(quizError));
+    throw new Error(`createQuiz failed: ${quizError?.message || 'no data returned'}`);
   }
 
   const optionRows = options.map((label) => ({
@@ -109,7 +109,8 @@ export async function createQuiz(quiz: {
     .insert(optionRows);
 
   if (optError) {
-    console.error('createQuiz options error:', optError);
+    console.error('createQuiz options error:', JSON.stringify(optError));
+    throw new Error(`createQuiz options failed: ${optError.message}`);
   }
 
   return getQuizById(quizRow.id);

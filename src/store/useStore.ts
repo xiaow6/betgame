@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { User, SportEvent, Quiz, Bet, Transaction } from '@/types';
-import { mockUser, mockEvents, mockQuizzes, mockBets, mockTransactions } from '@/lib/mock-data';
+import { mockEvents } from '@/lib/mock-data';
 
 interface AppState {
   // Auth
@@ -8,6 +8,7 @@ interface AppState {
   isLoggedIn: boolean;
   login: (user: User) => void;
   logout: () => void;
+  loadUser: () => Promise<void>;
 
   // Events
   events: SportEvent[];
@@ -34,26 +35,38 @@ interface AppState {
 }
 
 export const useStore = create<AppState>((set) => ({
-  // Auth - start with mock user for dev
-  user: mockUser,
-  isLoggedIn: true,
+  // Auth - start with null, load from API
+  user: null,
+  isLoggedIn: false,
   login: (user) => set({ user, isLoggedIn: true }),
   logout: () => set({ user: null, isLoggedIn: false }),
+  loadUser: async () => {
+    try {
+      // Try to load test user by phone
+      const res = await fetch('/api/user?phone=%2B27812345678');
+      const data = await res.json();
+      if (data.success && data.data) {
+        set({ user: data.data, isLoggedIn: true });
+      }
+    } catch {
+      // If API fails, stay logged out
+    }
+  },
 
-  // Events
+  // Events (still mock for now)
   events: mockEvents,
   setEvents: (events) => set({ events }),
 
   // Quizzes
-  quizzes: mockQuizzes,
+  quizzes: [],
   setQuizzes: (quizzes) => set({ quizzes }),
 
   // Bets
-  bets: mockBets,
+  bets: [],
   addBet: (bet) => set((state) => ({ bets: [bet, ...state.bets] })),
 
   // Transactions
-  transactions: mockTransactions,
+  transactions: [],
   addTransaction: (tx) => set((state) => ({ transactions: [tx, ...state.transactions] })),
 
   // Wallet
