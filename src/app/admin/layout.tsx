@@ -3,15 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Calendar, HelpCircle, Users,
+  LayoutDashboard, Calendar, Users,
   Wallet, Shield, ArrowLeft, Tv, FlaskConical
 } from 'lucide-react';
 
 const adminNav = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/events', label: 'Events', icon: Calendar },
-  { href: '/admin/quizzes', label: 'Quizzes', icon: HelpCircle },
-  { href: '/admin/draws', label: 'TV Draws', icon: Tv },
+  { href: '/admin/quizzes', label: 'TV Grand Prize', icon: Tv },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/finance', label: 'Finance', icon: Wallet },
   { href: '/admin/risk', label: 'Risk Control', icon: Shield },

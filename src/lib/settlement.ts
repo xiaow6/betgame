@@ -342,7 +342,14 @@ export function settleQuiz(
     : 0;
 
   // Random draw from correct answers
-  const shuffled = [...correctBets].sort(() => Math.random() - 0.5);
+  // Cryptographic shuffle: Fisher-Yates with crypto.getRandomValues
+  const shuffled = [...correctBets];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const arr = new Uint32Array(1);
+    crypto.getRandomValues(arr);
+    const j = arr[0] % (i + 1);
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
   const drawnWinners = shuffled.slice(0, actualWinnerCount);
 
   // Distribute prizes

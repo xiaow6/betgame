@@ -1,33 +1,88 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Check, Clock, Trophy, Tv } from 'lucide-react';
+import { ArrowLeft, Check, Clock, Trophy, Tv, Share2, Users, Ticket, Sparkles } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { formatMoneyShort, formatMoney } from '@/lib/constants';
 import { v4 as uuidv4 } from 'uuid';
 import type { Bet, Transaction } from '@/types';
 
+// ─── Countdown Timer ───
 function Countdown({ expiresAt }: { expiresAt: string }) {
-  const [timeLeft, setTimeLeft] = useState('');
+  const [h, setH] = useState('00');
+  const [m, setM] = useState('00');
+  const [s, setS] = useState('00');
+  const [ended, setEnded] = useState(false);
 
   useEffect(() => {
     function update() {
       const diff = new Date(expiresAt).getTime() - Date.now();
-      if (diff <= 0) { setTimeLeft('Ended'); return; }
-      const h = Math.floor(diff / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      setTimeLeft(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+      if (diff <= 0) { setEnded(true); return; }
+      setH(Math.floor(diff / 3600000).toString().padStart(2, '0'));
+      setM(Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0'));
+      setS(Math.floor((diff % 60000) / 1000).toString().padStart(2, '0'));
     }
     update();
     const timer = setInterval(update, 1000);
     return () => clearInterval(timer);
   }, [expiresAt]);
 
-  return <span className="font-mono font-bold text-2xl text-white">{timeLeft}</span>;
+  if (ended) return <span className="text-red-400 font-bold text-xl">ENDED</span>;
+
+  return (
+    <div className="flex items-center gap-1">
+      {[h, m, s].map((v, i) => (
+        <div key={i} className="flex items-center gap-1">
+          <div className="bg-[#0f0f23] rounded-lg px-3 py-2 min-w-[48px] text-center">
+            <span className="font-mono font-bold text-2xl text-white">{v}</span>
+          </div>
+          {i < 2 && <span className="text-gray-500 font-bold text-xl animate-count-pulse">:</span>}
+        </div>
+      ))}
+    </div>
+  );
 }
 
+// ─── Confetti Effect ───
+function Confetti() {
+  const [pieces, setPieces] = useState<{ id: number; left: number; color: string; delay: number; duration: number; size: number }[]>([]);
+
+  useEffect(() => {
+    const colors = ['#eab308', '#f59e0b', '#fbbf24', '#fde047', '#ef4444', '#22c55e', '#3b82f6', '#a855f7'];
+    const newPieces = Array.from({ length: 40 }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      delay: Math.random() * 0.8,
+      duration: 1.5 + Math.random() * 2,
+      size: 6 + Math.random() * 8,
+    }));
+    setPieces(newPieces);
+  }, []);
+
+  return (
+    <>
+      {pieces.map((p) => (
+        <div
+          key={p.id}
+          className="confetti-piece"
+          style={{
+            left: `${p.left}%`,
+            backgroundColor: p.color,
+            width: `${p.size}px`,
+            height: `${p.size}px`,
+            animationDelay: `${p.delay}s`,
+            animationDuration: `${p.duration}s`,
+            borderRadius: Math.random() > 0.5 ? '50%' : '2px',
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
+// ─── Main Page ───
 export default function QuizDetailPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -36,7 +91,12 @@ export default function QuizDetailPage() {
 
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [successAnim, setSuccessAnim] = useState(false);
+
+  // Find user's existing bet for this quiz
+  const myBet = bets.find(b => b.quiz_id === quiz?.id && b.user_id === user?.id);
+  const alreadyJoined = !!myBet;
 
   if (!quiz) {
     return (
@@ -49,10 +109,13 @@ export default function QuizDetailPage() {
   const prizePerWinner = quiz.winner_count > 0
     ? Math.floor(quiz.prize_pool / quiz.winner_count)
     : 0;
-  const alreadyJoined = bets.some(b => b.quiz_id === quiz.id && b.user_id === user?.id);
   const isActive = quiz.status === 'active';
   const canJoin = isActive && selectedOption && !placing && !alreadyJoined
     && (user?.balance ?? 0) >= quiz.entry_fee;
+  const myPickedOption = myBet ? quiz.options.find(o => o.id === myBet.option_id) : null;
+
+  // Mock: entries count (1 base + referrals)
+  const myEntries = 1; // In production: fetch from API based on referrals for this quiz
 
   function handleJoinQuiz() {
     if (!canJoin || !user || !quiz) return;
@@ -87,53 +150,109 @@ export default function QuizDetailPage() {
     addTransaction(tx);
     updateBalance(-quiz.entry_fee, 'balance');
 
+    // Trigger animation sequence
     setTimeout(() => {
       setPlacing(false);
-      setSuccess(true);
-    }, 500);
+      setShowConfetti(true);
+      setSuccessAnim(true);
+      setTimeout(() => setShowConfetti(false), 4000);
+    }, 800);
   }
 
-  // Success screen
-  if (success) {
+  async function handleInvite() {
+    if (!quiz) return;
+    const shareText = `I just entered to win ${formatMoneyShort(quiz.prize_pool)} on BetGame TV Grand Prize! Join with just ${formatMoneyShort(quiz.entry_fee)} - use my code: ${user?.referral_code || 'BETGAME'}`;
+    const shareUrl = `https://betgame.app/join?ref=${user?.referral_code || ''}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Win Big on BetGame!', text: shareText, url: shareUrl });
+      } catch { /* cancelled */ }
+    } else {
+      try {
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+      } catch { /* fallback */ }
+    }
+  }
+
+  // ─── Success overlay after joining ───
+  if (successAnim) {
     const selectedOpt = quiz.options.find(o => o.id === selectedOption);
     return (
-      <div className="px-4 py-12 text-center">
-        <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Check size={32} className="text-yellow-400" />
+      <div className="px-4 py-6 min-h-screen flex flex-col justify-center">
+        {showConfetti && <Confetti />}
+
+        <div className="text-center animate-bounce-in">
+          {/* Glowing trophy */}
+          <div className="relative inline-block mb-5">
+            <div className="absolute inset-0 rounded-full animate-prize-glow" />
+            <div className="w-20 h-20 bg-yellow-500/20 rounded-full flex items-center justify-center relative">
+              <Trophy size={40} className="text-yellow-400 animate-float" />
+            </div>
+          </div>
+
+          <h2 className="text-2xl font-bold mb-1 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+            You&apos;re In!
+          </h2>
+          <p className="text-gray-400 text-sm mb-6 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+            Your answer: <span className="text-yellow-400 font-bold">{selectedOpt?.label}</span>
+          </p>
         </div>
-        <h2 className="text-xl font-bold mb-2">You&apos;re In!</h2>
-        <p className="text-gray-400 text-sm mb-4">
-          Your answer: <span className="text-white font-semibold">{selectedOpt?.label}</span>
-        </p>
-        <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 rounded-xl p-4 mb-6 mx-8">
-          <p className="text-xs text-gray-400 mb-1">You could win</p>
-          <p className="text-yellow-400 font-bold text-3xl">{formatMoney(prizePerWinner)}</p>
+
+        {/* Prize card with glow */}
+        <div className="animate-slide-up" style={{ animationDelay: '0.3s' }}>
+          <div className="bg-gradient-to-br from-yellow-500/15 to-orange-500/15 rounded-2xl p-6 text-center animate-prize-glow mb-4">
+            <p className="text-xs text-gray-400 mb-1">You could win</p>
+            <p className="text-yellow-400 font-bold text-4xl mb-1">{formatMoney(prizePerWinner)}</p>
+            <div className="animate-shimmer rounded-lg py-1 mt-2">
+              <p className="text-[11px] text-yellow-400/70">Draw starts at {quiz.draw_at ? new Date(quiz.draw_at).toLocaleString('en-ZA') : 'TBA'}</p>
+            </div>
+          </div>
         </div>
-        <p className="text-xs text-gray-500 mb-6">
-          Draw starts at {quiz.draw_at ? new Date(quiz.draw_at).toLocaleString('en-ZA') : 'TBA'}
-        </p>
-        <button
-          onClick={() => router.push('/quiz')}
-          className="bg-yellow-500 text-black font-semibold px-8 py-3 rounded-full"
-        >
-          More Prizes
-        </button>
+
+        {/* Invite to boost */}
+        <div className="animate-slide-up" style={{ animationDelay: '0.5s' }}>
+          <div className="bg-[#1a1a2e] rounded-2xl p-5 text-center mb-4">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Sparkles size={16} className="text-yellow-400" />
+              <span className="text-sm font-bold text-yellow-400">Boost Your Chances!</span>
+            </div>
+            <p className="text-xs text-gray-400 mb-4">
+              Each friend you invite gives you an extra entry into the draw
+            </p>
+            <button
+              onClick={handleInvite}
+              className="w-full bg-green-500 text-white py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:bg-green-600"
+            >
+              <Share2 size={16} /> Invite Friends - Get More Entries
+            </button>
+          </div>
+        </div>
+
+        <div className="animate-slide-up" style={{ animationDelay: '0.6s' }}>
+          <button
+            onClick={() => setSuccessAnim(false)}
+            className="w-full py-3 text-gray-400 text-sm"
+          >
+            Back to prize details
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="px-4 py-4">
+    <div className="px-4 py-4 pb-24">
       <button onClick={() => router.back()} className="flex items-center gap-1 text-gray-400 mb-4">
         <ArrowLeft size={18} />
         <span className="text-sm">Back</span>
       </button>
 
-      {/* Prize Hero */}
-      <div className="bg-gradient-to-br from-yellow-500/15 to-orange-500/15 rounded-2xl p-5 mb-4 text-center">
+      {/* Prize Hero with glow */}
+      <div className="bg-gradient-to-br from-yellow-500/15 to-orange-500/15 rounded-2xl p-5 mb-4 text-center animate-prize-glow">
         <div className="flex items-center justify-center gap-2 mb-2">
-          <Tv size={20} className="text-yellow-400" />
-          <span className="text-xs text-yellow-400/80 font-semibold uppercase tracking-wider">TV Grand Prize</span>
+          <Tv size={18} className="text-yellow-400" />
+          <span className="text-[11px] text-yellow-400/80 font-semibold uppercase tracking-wider">TV Grand Prize</span>
         </div>
         <p className="text-yellow-400 font-bold text-4xl mb-1">{formatMoneyShort(quiz.prize_pool)}</p>
         <p className="text-xs text-gray-400">
@@ -144,11 +263,62 @@ export default function QuizDetailPage() {
       {/* Countdown */}
       {isActive && (
         <div className="bg-[#1a1a2e] rounded-xl p-4 mb-4 text-center">
-          <div className="flex items-center justify-center gap-2 mb-2">
+          <div className="flex items-center justify-center gap-2 mb-3">
             <Clock size={14} className="text-red-400" />
-            <span className="text-xs text-red-400 font-semibold uppercase">Time Remaining</span>
+            <span className="text-[11px] text-red-400 font-semibold uppercase tracking-wider">Closing In</span>
           </div>
           <Countdown expiresAt={quiz.expires_at} />
+        </div>
+      )}
+
+      {/* My Bet Status (if already joined) */}
+      {alreadyJoined && isActive && (
+        <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-xl p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 bg-green-500/20 rounded-full flex items-center justify-center">
+              <Check size={16} className="text-green-400" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-green-400">You&apos;re in the draw!</p>
+              <p className="text-[11px] text-gray-400">Results announced live on TV</p>
+            </div>
+          </div>
+
+          <div className="bg-[#0f0f23] rounded-lg p-3 space-y-2">
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">Your answer</span>
+              <span className="text-white font-semibold">{myPickedOption?.label}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">Entry paid</span>
+              <span className="text-white">{formatMoney(myBet!.amount)}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">Your entries</span>
+              <span className="text-yellow-400 font-bold">{myEntries}x</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">Potential prize</span>
+              <span className="text-yellow-400 font-bold">{formatMoney(prizePerWinner)}</span>
+            </div>
+          </div>
+
+          {/* Invite to boost */}
+          <div className="mt-3 pt-3 border-t border-green-500/10">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles size={14} className="text-yellow-400" />
+              <span className="text-xs font-bold text-yellow-400">Want more chances to win?</span>
+            </div>
+            <p className="text-[11px] text-gray-400 mb-3">
+              Invite a friend = 1 extra draw entry for you. More friends = more chances!
+            </p>
+            <button
+              onClick={handleInvite}
+              className="w-full bg-green-500 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:bg-green-600"
+            >
+              <Share2 size={16} /> Invite Friends for Extra Entries
+            </button>
+          </div>
         </div>
       )}
 
@@ -158,13 +328,16 @@ export default function QuizDetailPage() {
       </div>
 
       {/* Options */}
-      <h3 className="font-semibold text-sm mb-2">
-        {isActive ? 'Pick your answer' : 'Answers'}
-      </h3>
+      {!alreadyJoined && (
+        <h3 className="font-semibold text-sm mb-2">
+          {isActive ? 'Pick your answer' : 'Answers'}
+        </h3>
+      )}
       <div className="space-y-2 mb-5">
         {quiz.options.map((opt) => {
           const isCorrect = quiz.correct_option_id === opt.id;
           const isSelected = selectedOption === opt.id;
+          const isMyPick = myBet?.option_id === opt.id;
 
           return (
             <button
@@ -174,58 +347,63 @@ export default function QuizDetailPage() {
               className={`w-full p-4 rounded-xl text-left transition-all border-2 ${
                 isCorrect
                   ? 'border-green-500 bg-green-500/10'
-                  : isSelected
-                    ? 'border-yellow-500 bg-yellow-500/10'
-                    : 'border-transparent bg-[#1a1a2e]'
+                  : isMyPick
+                    ? 'border-yellow-500/50 bg-yellow-500/5'
+                    : isSelected
+                      ? 'border-yellow-500 bg-yellow-500/10'
+                      : 'border-transparent bg-[#1a1a2e]'
               }`}
             >
               <div className="flex items-center gap-3">
                 <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
                   isCorrect
                     ? 'border-green-500 bg-green-500'
-                    : isSelected
+                    : isMyPick
                       ? 'border-yellow-500 bg-yellow-500'
-                      : 'border-gray-600'
+                      : isSelected
+                        ? 'border-yellow-500 bg-yellow-500'
+                        : 'border-gray-600'
                 }`}>
-                  {(isSelected || isCorrect) && <Check size={12} className={isCorrect ? 'text-white' : 'text-black'} />}
+                  {(isSelected || isCorrect || isMyPick) && (
+                    <Check size={12} className={isCorrect ? 'text-white' : 'text-black'} />
+                  )}
                 </div>
-                <span className={`font-medium text-sm ${isCorrect ? 'text-green-400' : ''}`}>
+                <span className={`font-medium text-sm flex-1 ${isCorrect ? 'text-green-400' : ''}`}>
                   {opt.label}
                 </span>
+                {isMyPick && (
+                  <span className="text-[10px] text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded-full">
+                    Your pick
+                  </span>
+                )}
               </div>
             </button>
           );
         })}
       </div>
 
-      {/* Already joined */}
-      {alreadyJoined && isActive && (
-        <div className="bg-yellow-500/10 rounded-xl p-4 text-center mb-4">
-          <Check size={20} className="text-yellow-400 mx-auto mb-1" />
-          <p className="text-sm text-yellow-400 font-semibold">You&apos;re in the draw!</p>
-          <p className="text-xs text-gray-400 mt-1">Good luck! Results announced live on TV.</p>
-        </div>
-      )}
-
-      {/* Join button */}
+      {/* Join button (not yet joined) */}
       {isActive && !alreadyJoined && (
-        <div className="space-y-3">
+        <div className="fixed bottom-16 left-0 right-0 px-4 pb-3 pt-2 bg-gradient-to-t from-[#0f0f23] via-[#0f0f23] to-transparent">
           <button
             onClick={handleJoinQuiz}
             disabled={!canJoin}
-            className={`w-full py-4 rounded-2xl text-base font-bold transition-all ${
+            className={`w-full py-4 rounded-2xl text-base font-bold transition-all max-w-lg mx-auto block ${
               canJoin
-                ? 'bg-yellow-500 text-black active:bg-yellow-600'
+                ? 'bg-yellow-500 text-black active:scale-[0.98]'
                 : 'bg-gray-700 text-gray-500'
             }`}
           >
-            {placing
-              ? 'Joining...'
-              : !selectedOption
-                ? 'Pick an answer to enter'
-                : (user?.balance ?? 0) < quiz.entry_fee
-                  ? 'Insufficient balance'
-                  : `Enter for ${formatMoney(quiz.entry_fee)} - Win ${formatMoneyShort(prizePerWinner)}!`
+            {placing ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                Entering...
+              </span>
+            ) : !selectedOption
+              ? 'Pick an answer to enter'
+              : (user?.balance ?? 0) < quiz.entry_fee
+                ? 'Insufficient balance'
+                : `Enter for ${formatMoney(quiz.entry_fee)} - Win ${formatMoneyShort(prizePerWinner)}!`
             }
           </button>
         </div>
