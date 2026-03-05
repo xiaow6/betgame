@@ -17,17 +17,19 @@ export const DEFAULT_MIN_BET = 100;     // R1
 export const DEFAULT_MAX_BET = 50000;   // R500
 export const MAX_PAYOUT_PER_EVENT = 5000000; // R50,000
 
-// Format cents to display string
+// Format cents to display string with thousand separators
+// e.g. 10000000 → R100,000.00
 export function formatMoney(cents: number): string {
   const rand = cents / 100;
-  return `${CURRENCY}${rand.toFixed(2)}`;
+  return `${CURRENCY}${rand.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-// Format short (no decimals for whole numbers)
+// Format short (no decimals for whole numbers, with thousand separators)
+// e.g. 10000000 → R100,000   |   550 → R5.50
 export function formatMoneyShort(cents: number): string {
   const rand = cents / 100;
-  if (rand % 1 === 0) return `${CURRENCY}${rand}`;
-  return `${CURRENCY}${rand.toFixed(2)}`;
+  if (rand % 1 === 0) return `${CURRENCY}${rand.toLocaleString('en-ZA')}`;
+  return `${CURRENCY}${rand.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 // Event categories with labels
