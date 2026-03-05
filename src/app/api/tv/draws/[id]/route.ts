@@ -70,7 +70,7 @@ export async function POST(
     };
     response.message = 'Winner selected';
     response.audit = {
-      seed: '0x' + Math.random().toString(16).slice(2, 8),
+      seed: (() => { const b = new Uint8Array(8); crypto.getRandomValues(b); return '0x' + Array.from(b).map(x => x.toString(16).padStart(2, '0')).join(''); })(),
       algorithm: 'crypto.getRandomValues weighted',
       timestamp: new Date().toISOString(),
     };
