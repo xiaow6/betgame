@@ -101,7 +101,6 @@ export async function createQuiz(quiz: {
   const optionRows = options.map((label) => ({
     quiz_id: quizRow.id,
     label,
-    pick_count: 0,
   }));
 
   const { error: optError } = await db()
@@ -288,11 +287,13 @@ function mapQuizRow(row: any): Quiz {
     id: row.id,
     question: row.question,
     category: row.category || 'other',
-    options: (row.quiz_options || []).map((o: QuizOption) => ({
+    // DB column is bet_count; app uses pick_count
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    options: (row.quiz_options || []).map((o: any) => ({
       id: o.id,
       quiz_id: o.quiz_id,
       label: o.label,
-      pick_count: o.pick_count || 0,
+      pick_count: o.pick_count ?? o.bet_count ?? 0,
     })),
     correct_option_id: row.correct_option_id,
     status: row.status,
