@@ -82,16 +82,8 @@ export function middleware(request: NextRequest) {
     }
 
     // ─── API Auth Check ───
-    // Payment & TV APIs require authentication
-    if (pathname.startsWith('/api/payment/')) {
-      const authHeader = request.headers.get('authorization');
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return NextResponse.json(
-          { error: 'Authentication required' },
-          { status: 401 }
-        );
-      }
-    }
+    // Payment APIs: auth is handled inside each route (user_id validation)
+    // TODO: enforce Bearer token once auth system is fully implemented
 
     if (pathname.startsWith('/api/tv/')) {
       const apiKey = request.headers.get('x-tv-api-key');
