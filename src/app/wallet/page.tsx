@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Wallet, ArrowUpCircle, ArrowDownCircle, Gift, Trophy, RefreshCw, Plus, Minus, Check, CreditCard, Smartphone, Building2, AlertCircle } from 'lucide-react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Wallet, ArrowUpCircle, ArrowDownCircle, Gift, Trophy, RefreshCw, Plus, Minus, Check, CreditCard, Smartphone, Building2, AlertCircle, ExternalLink, X } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { formatMoney, formatMoneyShort } from '@/lib/constants';
 import type { TxType, Transaction } from '@/types';
@@ -31,21 +32,58 @@ const txColors: Record<TxType, string> = {
 type PayMethod = 'eft' | 'card' | 'airtime';
 
 const payMethods = [
+  { key: 'card' as PayMethod, label: 'Card', icon: CreditCard, desc: 'Visa / Mastercard via Stripe' },
   { key: 'eft' as PayMethod, label: 'EFT / Bank', icon: Building2, desc: 'Instant EFT via Ozow' },
-  { key: 'card' as PayMethod, label: 'Card', icon: CreditCard, desc: 'Visa / Mastercard' },
   { key: 'airtime' as PayMethod, label: 'Airtime', icon: Smartphone, desc: 'Pay with airtime' },
 ];
 
 const quickAmounts = [5, 10, 20, 50, 100, 200];
+
+// Payment return banner component
+function PaymentReturnBanner() {
+  const searchParams = useSearchParams();
+  const [banner, setBanner] = useState<{ type: string; message: string } | null>(null);
+
+  useEffect(() => {
+    const paymentStatus = searchParams.get('payment');
+    if (paymentStatus === 'success') {
+      setBanner({ type: 'success', message: 'Payment successful! Your balance will be updated shortly.' });
+    } else if (paymentStatus === 'cancelled') {
+      setBanner({ type: 'warning', message: 'Payment was cancelled.' });
+    } else if (paymentStatus === 'error') {
+      setBanner({ type: 'error', message: 'Payment failed. Please try again.' });
+    }
+  }, [searchParams]);
+
+  if (!banner) return null;
+
+  return (
+    <div className={`rounded-xl p-3 mb-4 flex items-center justify-between ${
+      banner.type === 'success' ? 'bg-green-500/10 border border-green-500/20' :
+      banner.type === 'warning' ? 'bg-yellow-500/10 border border-yellow-500/20' :
+      'bg-red-500/10 border border-red-500/20'
+    }`}>
+      <p className={`text-sm ${
+        banner.type === 'success' ? 'text-green-400' :
+        banner.type === 'warning' ? 'text-yellow-400' :
+        'text-red-400'
+      }`}>{banner.message}</p>
+      <button onClick={() => setBanner(null)}>
+        <X size={16} className="text-gray-400" />
+      </button>
+    </div>
+  );
+}
 
 export default function WalletPage() {
   const { user, updateBalance } = useStore();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [showDeposit, setShowDeposit] = useState(false);
   const [depositAmount, setDepositAmount] = useState('');
-  const [payMethod, setPayMethod] = useState<PayMethod>('eft');
+  const [payMethod, setPayMethod] = useState<PayMethod>('card');
   const [depositing, setDepositing] = useState(false);
   const [depositSuccess, setDepositSuccess] = useState(false);
+  const [depositError, setDepositError] = useState('');
 
   // Fetch transactions from API
   useEffect(() => {
@@ -62,44 +100,94 @@ export default function WalletPage() {
   async function handleDeposit() {
     if (!canDeposit || !user) return;
     setDepositing(true);
+    setDepositError('');
 
     try {
-      const res = await fetch('/api/payment/deposit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: user.id,
-          amount: amountCents,
-          method: payMethod,
-        }),
-      });
+      if (payMethod === 'card') {
+        // Use Stripe Checkout for card payments
+        const res = await fetch('/api/payment/stripe/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: user.id,
+            amount: amountCents,
+          }),
+        });
 
-      const data = await res.json();
+        const data = await res.json();
 
-      if (data.success) {
-        updateBalance(amountCents, 'balance');
-        // Refresh transactions
-        const txRes = await fetch(`/api/user/transactions?user_id=${user.id}`);
-        const txData = await txRes.json();
-        if (txData.data) setTransactions(txData.data);
+        if (data.success && data.data?.checkoutUrl) {
+          window.location.href = data.data.checkoutUrl;
+          return;
+        } else {
+          setDepositError(data.error || 'Failed to initiate payment');
+          setDepositing(false);
+        }
+      } else if (payMethod === 'eft') {
+        // Use Ozow for EFT payments
+        const res = await fetch('/api/payment/ozow/initiate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: user.id,
+            amount: amountCents,
+          }),
+        });
 
-        setDepositing(false);
-        setDepositSuccess(true);
-        setTimeout(() => {
-          setDepositSuccess(false);
-          setShowDeposit(false);
-          setDepositAmount('');
-        }, 2000);
+        const data = await res.json();
+
+        if (data.success && data.data?.paymentUrl) {
+          window.location.href = data.data.paymentUrl;
+          return;
+        } else {
+          setDepositError(data.error || data.details || 'Failed to initiate payment');
+          setDepositing(false);
+        }
       } else {
-        setDepositing(false);
+        // Airtime: mock deposit flow
+        const res = await fetch('/api/payment/deposit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: user.id,
+            amount: amountCents,
+            method: payMethod,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          updateBalance(amountCents, 'balance');
+          const txRes = await fetch(`/api/user/transactions?user_id=${user.id}`);
+          const txData = await txRes.json();
+          if (txData.data) setTransactions(txData.data);
+
+          setDepositing(false);
+          setDepositSuccess(true);
+          setTimeout(() => {
+            setDepositSuccess(false);
+            setShowDeposit(false);
+            setDepositAmount('');
+          }, 2000);
+        } else {
+          setDepositError(data.error || 'Deposit failed');
+          setDepositing(false);
+        }
       }
     } catch {
+      setDepositError('Network error, please try again');
       setDepositing(false);
     }
   }
 
   return (
     <div className="px-4 py-4">
+      {/* Payment return banner */}
+      <Suspense fallback={null}>
+        <PaymentReturnBanner />
+      </Suspense>
+
       {/* Balance Card */}
       <div className="bg-gradient-to-br from-[#1a1a2e] to-[#16213e] rounded-2xl p-5 mb-5">
         <p className="text-gray-400 text-sm">Total Balance</p>
@@ -118,7 +206,7 @@ export default function WalletPage() {
 
         <div className="flex gap-3 mt-4">
           <button
-            onClick={() => { setShowDeposit(!showDeposit); setDepositSuccess(false); }}
+            onClick={() => { setShowDeposit(!showDeposit); setDepositSuccess(false); setDepositError(''); }}
             className={`flex-1 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
               showDeposit
                 ? 'bg-green-600 text-white'
@@ -233,6 +321,14 @@ export default function WalletPage() {
                 </div>
               )}
 
+              {/* Error message */}
+              {depositError && (
+                <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 p-3 rounded-xl">
+                  <AlertCircle size={14} />
+                  <span>{depositError}</span>
+                </div>
+              )}
+
               {/* Deposit button */}
               <button
                 onClick={handleDeposit}
@@ -246,7 +342,17 @@ export default function WalletPage() {
                 {depositing ? (
                   <span className="flex items-center justify-center gap-2">
                     <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Processing...
+                    {payMethod === 'card' ? 'Connecting to Stripe...' : payMethod === 'eft' ? 'Connecting to Ozow...' : 'Processing...'}
+                  </span>
+                ) : payMethod === 'card' ? (
+                  <span className="flex items-center justify-center gap-2">
+                    {amountCents >= 500 ? `Pay ${formatMoney(amountCents)} via Stripe` : 'Select amount'}
+                    {amountCents >= 500 && <ExternalLink size={16} />}
+                  </span>
+                ) : payMethod === 'eft' ? (
+                  <span className="flex items-center justify-center gap-2">
+                    {amountCents >= 500 ? `Pay ${formatMoney(amountCents)} via Ozow` : 'Select amount'}
+                    {amountCents >= 500 && <ExternalLink size={16} />}
                   </span>
                 ) : (
                   `Deposit ${amountCents >= 500 ? formatMoney(amountCents) : ''}`
@@ -254,7 +360,11 @@ export default function WalletPage() {
               </button>
 
               <p className="text-[10px] text-gray-600 text-center">
-                Secure payment powered by Ozow. Instant processing, no fees.
+                {payMethod === 'card'
+                  ? 'You will be redirected to Stripe to complete your payment securely.'
+                  : payMethod === 'eft'
+                  ? 'You will be redirected to Ozow to complete your payment securely.'
+                  : 'Secure payment. Instant processing, no fees.'}
               </p>
             </>
           )}
